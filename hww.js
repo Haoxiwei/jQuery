@@ -15,6 +15,18 @@
 
 
 (function(window,undefined) {
+
+
+
+    //创建一个入口函数为itcast的构造函数
+    function itcast(html) {
+        //返回一个init作为构造函数创建的一个实例对象
+        return new itcast.fn.init(html);
+    }
+
+
+
+
     //将传递的参数转换成dom数组，并将dom数组返回作为parseHtml函数的结果输出到页面上
     function parseHtml(html) {
         var div = document.createElement('div');
@@ -27,11 +39,7 @@
     };
 
 
-    //创建一个入口函数为itcast的构造函数
-    function itcast(html) {
-        //返回一个init作为构造函数创建的一个实例对象
-        return new itcast.fn.init(html);
-    }
+
 
     //设置itcast构造函数的原型属性
     itcast.fn = itcast.prototype = {
@@ -63,6 +71,8 @@
         //init构造函数：创建伪数组对象的构造函数，该函数有一个返回的对象
         //（返回的对象里面包括一个个的dom元素并且拥有length属性，所以是伪数组
         init: function (html) {
+             //events 应该是每一个itcast 对象都拥有的方法
+            this.events = {}
 //                [].push.apply(this,parseHtml(html))
             //进行判断，如果传入的html参数为空或者空字符串，直接return
             if (html == null || html === "") {
@@ -70,6 +80,27 @@
             }
             //如果html参数传入的函数
             if (typeof html === 'function') {
+            //如果是一个函数，那么就将  函数绑定到 onload 上，然乎返回
+            // onload  = html
+                //首先判断是否已有函数
+                //最开始的时候，onload 没有绑定任何事件，所以oldfn是undefined
+                var oldFn = onload ;
+                //判断如果  oldFn 的类型  是函数
+                if(typeof  oldFn ===  'function'){
+                    //将 onload 绑定一个事件处理函数
+                    onload = function(){
+                        //在事件处理函数中调用oldfn  星期天函数
+                        oldFn();
+                        //在调用html：别人出去的函数
+                        html();
+                    }
+                }
+                else{
+                    //将onload绑定一个事件处理函数  html
+                    //当我们执行代码的时候，只会将函数绑定onload事件，只有当onload事件发生的时候
+                    onload = html;
+                }
+                return
 
             }
             //如果传入的参数是字符串
@@ -91,13 +122,17 @@
             if (html && html.type === itcast) {
                 //this就是新创建的itcast对象，html就是传入的itcast对象
                 //将传进来的html对象中的所有元素添加给this对象
-                push.apply(this, html);
+                [].push.apply(this, html);
                 //用selector属性记录字符串html
-                this.selector = html;
+                this.selector = html.selector;
+                this.events = html.events;
             }
 
             if (html && html.nodeType) {
-                this.push(html);
+                [].push.call(this,html);
+            }
+            if(html && itcast.isDom(html)){
+               [].push.call(this,html)
             }
 
         }
@@ -115,10 +150,22 @@
     }
 
     //所有静态方法的集合
-    //isString方法  each map 的静态方法
+    //isString方法  each map getStyle 的静态方法
     itcast.extend({
         isString:function(data){
             return typeof data === 'string';
+        },
+        isDom:function(data){
+
+        },
+        //封装一个获取属性的兼容性方法
+        getStyle:function(dom ,name){
+            if( dom.currentStyle){
+                return dom.currentStyle[name];
+            }
+            if(dom.getComputedStyle){
+                return window.getComputedStyle(0)[name]
+            }
         },
         each:function( arr, func ) {
             var i;
@@ -292,6 +339,402 @@
         }
 
     })
+    //事件处理模块
+
+    itcast.fn.extend({
+        //on 事件绑定
+        on:function(type,fn){
+            //第一次执行type 方法的时候 events属性中没有type 数组
+            if(!this.events[type]){
+                //如果没有 type 数组 我们就初始化click数组
+                this.events[type] = [];
+
+
+                //这里声明一个变量that，将this 指向 itcast对象改为一个that
+                var that = this
+                //当itcast 对象中的元素被点击的时候我们应该把数组中保存的函数拿出来一一执行
+                //我们应该为itcast 对象中的元素添加事件处理函数
+                this.each(function() {
+                    //这里面的this 指的就是itcast 对象中的每一个元素
+                    //函数 f 里面传入的 e 指的就是绑定的事件
+                    var f = function (e) {
+                        //因为这里面的this指向发生了改变，this指向的不再是外部的itcast对象
+                        //指向的是each遍历的itcast对象中的元素，也就是dom元素，所以下面遍历的时候
+                        //需要改变处理函数的  type 数组
+                        for (var i = 0; i < that.events[type].length; i++) {
+                            //遍历储存事件处理函数的  type  数组，而后按照顺序依次执行数组里面的事件处理函数
+                            //that.events[type][i]();
+                            //这里使用call 改变 函数的指向，this现在指向的是itcast创建出来的实例对象，e表示要绑定的事件元素
+                            that.events[type][i].call(this,e);
+                        }
+                    }
+                    //进行判断，如果有addeventListener 这个方法，就是用这个方法
+                    //事件参数 e 从哪里来的？  从事件绑定的函数来的
+                    //我们通过addEventListener 绑定事件的处理函数f。那么f就带有了事件参数e
+                    if( this.addEventListener){
+                        this.addEventListener(type,f)
+                    }
+                    //没有这种方法，就说明浏览器不兼容这个方法，使用下面这个方法
+                    else{
+                        this.attachEvent("on" + type ,f)
+                    }
+                })
+            }
+            //我们type数组是用来储存事件处理函数的，把传入的fn 函数全部放入  type 数组当中去
+            this.events[type].push(fn);
+                return this;
+        },
+        //点击事件
+        click:function(fn){
+            this.on('click',fn);
+        },
+        //事件移除off事件
+        off:function(type, fn){
+            //声明一个arr 记录 当前传入参数
+            var arr = this.events[type];
+            //进行判断，如果arr 传入了参数并且拥有值
+            if(arr ){
+                //循环遍历arr ,从后往前进行循环遍历
+                for(var i = arr.length-1; i>=0;i--){
+                    //如果arr的第 i 项 是传入的要删除的函数，就删除
+                    if(arr[i] == fn){
+                        arr.splice(i,1)
+                    }
+                }
+
+            }
+            return this
+        },
+
+})
+    // 所有事件的实现方式
+    var arr =("blur focus focusin focusout load resize scroll unload click dblclick " +
+    "mousedown mouseup mousemove mouseover mouseout mouseenter mouseleave " +
+    "change select submit keydown keypress keyup error contextmenu").split(' ')
+
+    //遍历数组中的每一个事件字符串
+    itcast.each(arr,function(i,v){
+        //itcast.fn[v] ==> itcast.fn[ blur ] = function(fn){ };
+        itcast.fn[v] = function(fn){
+            //最后调用on方法给元素绑定事件。这里面的this指向的就是itcast 对象
+            this.on(v,fn);
+
+            return this;
+        }
+    })
+
+
+
+
+
+
+
+
+    //hover  ，toggle 实现
+    itcast.fn.extend({
+        //鼠标经过
+        hover:function(fn1,fn2){
+            this.mouseover(fn1);
+            this.mouseout(fn2);
+            return this
+        },
+        //点击切换
+        toggle:function(){
+            //申明一个 变量 i
+            var i = 0 ;
+            //获得toggle  调用时传递的参数
+            var args = arguments;
+            //为this 对象 中保存的所有元素添加click事件
+            this.on("click",function(e){
+                //进行判断，如果 i 的值  等于了传入进来的参数的长度
+                if( i === args.length ){
+                    //将 i 进行初始化
+                    i = 0
+                }
+                //调用args 中保存的参数
+                args[i].call(this,e)
+                //变量 i 计数 +1
+                i++
+            })
+        }
+    })
+
+
+
+
+
+
+
+
+
+
+
+    //样式操作模块
+    itcast.fn.extend({
+        //css:function(option){
+        //    //option 传入的是键值对
+        //    //现在this 的指向指向的是itcast的实例对象，这里的this指的就是实例对象中包含的dom元素
+        //    for (var i=0;i<this.length;i++){
+        //        //this[i] 指的就是每一个dom元素
+        //        //for in 循环遍历  option ，取出键值对的 键和值
+        //        for(var k in option ){
+        //            //给每一个dom元素设置相应的属性
+        //            this[i].style[k] = option[k];
+        //        }
+        //
+        //    }
+        //
+        //    //支持链式编程，所以返回this
+        //    return this;
+        //},
+
+        //改良版  一个参数
+        css:function(option){
+            return this.each(function(){
+                for (var k in option ){
+                    this.style[ k ] = option [k]
+                }
+            })
+        },
+        //在此改良
+        css2:function(option){
+            //声明变量args 和 len  记录传入的参数的个数和长度
+            var args  =arguments,
+                len   =args.length;
+
+            //如果传入的参数的长度为2 ，就出现了二种情况，第一种相当于传入的一个{width:"100px"}
+            //另外一种情况就相当于获取值
+            if(len == 2){
+                //这个时候在此进行判断  如果传入的参数前后二个值都是字符串，就相当于上面的第一种情况
+                if(itcast.isString(args[0]) && itcast.isString(args[1])){
+                    //循环遍历这个值，进行设置，给每一个 DOM 元素设置  属性
+                    this.each(function(){
+                        this.style[args[0]] = args[1];
+                    })
+                }
+            }
+            //进行判断，如果传入的参数长度为1   就相当于传入的是 一个Json格式的对象
+            else if(len == 1){
+                if(itcast.isString( option )){
+                    //通过这种方法获得到的只有行内样式
+                    return this[0].style[option] || itcast.getStyle(this[0],option)
+                }
+                //进行第二次判断，如果传入的参数option 的类型是  对象类型   .css({width:'100px'})
+                else if( typeof option === 'object'){
+                    //循环遍历传入的dom元素
+                    for(var i =0 ; i< this.length ;i ++){
+                        //给每个dom元素都绑定上option 参数 传入的属性
+                        this.each(function(){
+                            for(var k in option ){
+                                this.style[k] = option[k];
+                            }
+                        })
+                    }
+                }
+            }
+        },
+        //给元素添加类名
+        addClass:function( name ){
+            //循环遍历每一个dom元素
+            this.each(function(){
+                //声明一个变量classTxt 接受dom元素的class 熟
+                var classTxt = this.className;
+                //判断classTxt 是否有值
+                if(classTxt){
+                    //有值的情况下进行判断，看是否和原来的class属性和需要添加的class属性有重复的现象
+                    //如果没有的情况下，就把class 属性加上去
+                    if(( " " + classTxt + " ").indexOf(" "+ name +" " == -1)){
+
+                        this.className  += ' ' + name;
+
+                    }
+                }
+
+                else{
+                    this.className = name;
+                }
+            })
+
+
+        },
+        //添加移除类名的方法
+        removeClass:function( name ){
+            //循环遍历每一个dom元素
+            this.each(function(){
+                //获得每一个dom元素的 class 属性
+                var classTxt = this.className;
+                //如果有class 属性
+                if(classTxt){
+                    //声明一个数组把所有的class 属性分割成一个数组
+                    var arr = classTxt.split(" ");
+                    //循环遍历这个数组，从后往前遍历
+                    for(var i= arr.length-1;i>=0;i++){
+                        //如果里面有传入的name 相同的属性，就给删除叼
+                        if(arr[i] === name){
+                            arr.splice(i,1)
+                        }
+                    }
+                    //循环结束以后，在把心的数组赋值给class属性
+                    this.className = arr.join( ' ' );
+                }
+
+            })
+            //支持链式编程，返回这个新的参数
+            return this;
+        },
+        //判断元素是否拥有这个类名的方法
+        hasClass:function( name ){
+            //循环遍历所有dom元素
+            for( var i = 0;i <this.length;i++){
+                //遍历每一个类名。如果下标有和传入的参数相一致的类名
+                if((" "+this[i].className+" ").indexOf(
+                        " "+name+" ") != -1){
+                    //就返回true，代表含有这个属性
+                    return true
+                }
+            }
+            //如果循环遍历结束，还没有发现和当前传入的类名相一致的类名
+            //就相当于没有找到和传入参数一样的类名，返回false
+            return false
+        },
+        toggleClass:function(name){
+            if(this.hasClass(name)){
+                this.removeClass(name)
+            }
+            else
+            {
+                this.addClass(name);
+            }
+            return this;
+        }
+
+    })
+
+
+
+
+    //属性操作模块
+    itcast.fn.extend({
+        //给元素设置属性:
+        // Attr  方法种的setAttribute 可以帮助我们添加自定义属性
+        //attr 方法的二个参数必须都是字符串，但是prop方法的第二个参数可以不是字符串
+
+        attr:function(name, value){
+            //如果传入的value 有值 或者value 为空字符串
+            if(value || value == ""){
+                //进行判断，如果传入的的属性名和属性值都是字符串
+                if(itcast.isString(name) && itcast.isString(value))
+                {
+                    //循环遍历dom 元素，然后对每一个dom元素进行属性设置
+                    return this.each(function(){
+                        this.setAttribute(name ,value)
+                    })
+                }
+            }
+            //如果没有传入value值，只传入了name，就相当于获取属性
+            else{
+                //进行判断。如果 传入的name 是一个字符串，返回该名字属性的值
+                if(itcast.isString(name)){
+                    return this[0].getAttribute(name,value)
+                }
+            }
+            //支持链式编程
+            return this;
+        },
+        //Prop 方法种的关联数组访问形式不能够添加自定义属性
+        // 只能够添加dom元素原有的属性
+        prop:function(name, value){
+            //如果传入的value 有值 或者value 为空字符串
+            if(value || value == ""){
+                //进行判断，如果传入的的属性名和属性值都是字符串
+                if(itcast.isString(name) && itcast.isString(value))
+                {
+                    //循环遍历dom 元素，然后对每一个dom元素进行属性设置
+                    return this.each(function(){
+                        this[name] =value
+                    })
+                }
+            }
+            //如果没有传入value值，只传入了name，就相当于获取属性
+            else{
+                //进行判断。如果 传入的name 是一个字符串，返回该名字属性的值
+                if(itcast.isString(name)){
+                    return this[0][name]
+                }
+            }
+            //支持链式编程
+            return this;
+        },
+        //设置value
+        val:function(v){
+            return this.attr("value",v)
+        },
+        //向页面输出文字和标签的属性
+        html:function(html){
+            return this.attr('innerHTML',html)
+        },
+        //向页面输出文字 的属性
+        text:function(txt){
+            //首先进行判断，如果有txt这个参数或者txt参数为一个空字符串
+            if(txt  || txt == ""){
+                //循环遍历dom 元素
+                this.each(function(){
+                    //给每一个dom元素创建一个文本节点，然后把文本节点传入到dom元素里面
+                    var temp = document.createTextNode(txt + "");
+                    this.appendChild(temp)
+                })
+            }
+            //如果没有传入txt参数，就代表要去获得dom元素中的文本信息
+            else
+            {
+            var arr =[];
+                getTxt(this[0],res);
+                return res.join( ' ' );
+            }
+            //返回支持链式编程
+            return this
+
+
+
+
+
+            function getTxt(node,list){
+                var arr = node.childNodes;
+                for(var i=0;i<arr.length;i++){
+                    if(arr[i].nodeType === 3){
+                        list.push(arr[i].nodeValue);
+                    }
+                    if(arr[i] === 1){
+                        getTxt(arr[i],list);
+                    }
+                }
+            }
+        }
+
+
+    })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     //选择器引擎模块

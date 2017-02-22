@@ -163,8 +163,8 @@
             if( dom.currentStyle){
                 return dom.currentStyle[name];
             }
-            if(dom.getComputedStyle){
-                return window.getComputedStyle(0)[name]
+            else if(window.getComputedStyle){
+                return window.getComputedStyle( dom )[name]
             }
         },
         each:function( arr, func ) {
@@ -715,8 +715,106 @@
     })
 
 
+    //动画函数封装模块
+
+    itcast.fn.extend({
+
+        //声明一个变量
+        interval:null,
+        //封装动画函数     props： 指的是传入的要改变的参数
+        //dur ： 动画的持续时间
+        //easing：动画执行的是匀速还是变速的
+        //fn:代表的是动画传入时的回调函数
+        animate:function(props,dur,easing,fn){
+            //申明一个变量记录当前 函数this 的指向
+            var iobj = this;
+            //循环变量调用函数的元素
+            this.each(function(){
+                //给每一个元素绑定上move 函数
+                move(this,props,dur,easing,fn)
+            });
+            //支持链式编程，返回当前的this
+            return this;
 
 
+            //封装 元素的运动线性， 是匀速 还是  变速
+            //currentTime： 动画持续的时间   time： 动画总时间
+            //startX： 开始是位置      endX：结束时的位置
+            //easing ： 动画的运动过程
+            function g(currentTime,time,startX,endX,easing){
+
+                //如果  是 匀速运动
+                if(easing == 'line'){
+                    // 速度  = 总路程  / 时间
+                    var speed = (startX - endX) / time;
+
+                    //位移 = 动画时间 * 速度
+                    return currentTime *  speed;
+                }
+
+                //如果 是 变速运动
+                else if(easing == 'change'){
+                    //路程 = 终点位置 - 起点位置
+                    var distance = endX - startX;
+                    //公式 ： Math.log( t + 1 ) / Math.log( time + 1 ) *distance
+                    return Math.log(currentTime + 1) / Math.log(time + 1 ) *distance;
+                }
+            }
+            // 封装一个 动画 函数
+            //node： 要移动的元素    props：传入的要改变的参数
+            //time： 动画的总时间    easing：动画运动的过程
+            //fn ： 动画执行完成以后的回掉函数
+            function move (node ,props , time ,easing ,fn ){
+
+                //声明变量
+                var start = {},
+                    isover =false;
+                // for in 循环  传入的参数
+                for(var k in props ){
+                    //声明变量temp 接受传入的参数 的 类型
+                    var temp = itcast.getStyle( node , k );
+                    //赋值给对象start
+                    start[k] = parseInt(temp);
+                }
+
+                //声明开始的时间
+                var startTime = +new Date;
+                //开启定时器
+                iobj.interval = setInterval(function(){
+
+                    //运动的持续时间 =  定时器开始的时间- 开始的时间
+                    var deltaTime = (+new Date) - startTime;
+                    //如果运动的持续时间  =  运动的总时间
+                    if(deltaTime >= time){
+                        //清除定时器，把持续时间设置为总时间
+                        clearInterval(iobj.interval);
+                        deltaTime = time;
+                        //变量isover  变为true  表示动画执行完毕，可以执行回掉函数
+                        isover = true;
+                    }
+                    // 设置运动的运动过程
+                    easing = easing || 'line';
+
+
+                    //for in 循环传入的参数
+                    for( var k in props ){
+                        //给node 元素 设置要改变的值
+                        node.style[k]= start[k]+
+                                g(deltaTime,time,start[k],parseInt(props[k]),easing)+
+                                "px";
+                    }
+
+                    //如果isover 变为true ，并且有传入回调函数
+                    if(isover && fn){
+                        fn.call(node);
+                        return
+                    }
+
+
+                },20)
+            }
+        }
+    })
 
 
 
